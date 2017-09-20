@@ -75,6 +75,11 @@
                                                 <div class="from-group">
                                                     <textarea class="form-control" rows="3" name="project_prebuild_command" value="{{project.project_prebuild_command}}" > {{project.project_prebuild_command}} </textarea>
 												</div>
+                                                <label>预编译仓库地址</label>
+                                                <div class="from-group">
+                                                    <input class="form-control" name="project_prebuild_dir" value="{{project.project_prebuild_dir}}" required pattern="^/.*/$" title="正确格式：/path/" >
+                                                    <p class="help-block">例如：/data/source_code/pre_path/</p>
+                                                </div>
 	                                     </div>
                                         {% endif %}
                                         <!-- 增加是否需要预编译 end-->

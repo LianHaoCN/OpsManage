@@ -51,6 +51,11 @@
                                                 <div class="from-group">
                                                     <textarea class="form-control" rows="3" name="project_prebuild_command"></textarea>
 												</div>
+                                                <label>预编译代码地址</label>
+                                                <div class="form-group">
+                                                    <input class="form-control" name="project_prebuild_dir" required pattern="^/.*/$" title="正确格式：/path/" >
+                                                    <p class="help-block">例如：/data/source_code/prelibpath/</p>
+                                                </div>
 	                                     </div>
                                         <!-- 增加是否需要预编译 end-->
                                         <div class="form-group">

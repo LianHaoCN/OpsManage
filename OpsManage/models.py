@@ -265,6 +265,7 @@ class Project_Config(models.Model):
     project_prebuild_type = models.SmallIntegerField(verbose_name='是否需要预编译，0为否，1为是',blank=True,null=True,default=0)
     project_prebuild_address = models.CharField(max_length=100,verbose_name='预编译仓库地址',default=None)
     project_prebuild_command= models.TextField(blank=True,null=True,verbose_name='预编译执行的命令',default=None)
+    project_prebuild_dir =  models.CharField(max_length=100,verbose_name='预编译代码目录',default=None)
     '''自定义权限'''
     class Meta:
         db_table = 'opsmanage_project_config'

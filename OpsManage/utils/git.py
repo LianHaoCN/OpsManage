@@ -48,11 +48,17 @@ class GitTools(object):
                 data['name'] = ds.replace('* ','').strip() 
                 data['value'] =  ds.replace('* ','').strip()
                 bList.append(data)        
-        return  bList      
-        
+        return  bList
     def createBranch(self,path,branchName):
-        cmd = "cd {path} && git checkout -b {branchName} origin/{branchName}".format(path=path,branchName=branchName)
-        return commands.getstatusoutput(cmd) 
+        cmd = "cd {path} && git branch".format(path=path)
+        status, result = commands.getstatusoutput(cmd)
+        cmd = "cd {path} && git checkout -b {branchName} origin/{branchName}".format(path=path, branchName=branchName)
+        if status == 0:
+            for ds  in result.split('\n'):
+                #分支存在不进行创建
+                if ds.find(branchName) == 0:
+                    return (0,"{branchName} is already exists" %branchName)
+        return commands.getstatusoutput(cmd)
     
     def delBranch(self,path,branchName):
         cmd = "cd {path} && git branch -d {branchName}".format(path=path,branchName=branchName)
@@ -86,7 +92,7 @@ class GitTools(object):
         return commands.getstatusoutput(cmd)    
     
     def clone(self,url,dir,user=None,passwd=None):
-        if os.path.exists(dir) is False:
+        if os.path.exists(dir+os.sep+'.git') is False:
             cmd = "git clone {url} {dir}".format(url=url,dir=dir)
         else:
             return (0,"%s The project already exists and does not need to be initialized" %dir)

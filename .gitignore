@@ -5,3 +5,4 @@ upload*
 .settings
 .project
 .pydevproject
+.idea
