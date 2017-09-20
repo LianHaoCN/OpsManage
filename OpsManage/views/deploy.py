@@ -1,6 +1,6 @@
 #!/usr/bin/env python  
 # _#_ coding:utf-8 _*_  
-import uuid
+import uuid,re,os
 from django.http import HttpResponseRedirect,JsonResponse
 from django.shortcuts import render_to_response
 from django.template import RequestContext
@@ -49,6 +49,9 @@ def deploy_add(request):
                                                     project_repo_user = request.POST.get('project_repo_user'),
                                                     project_repo_passwd = request.POST.get('project_repo_passwd'),
                                                     project_audit_group = request.POST.get('project_audit_group',None),
+                                                    project_prebuild_type = request.POST.get('project_prebuild_type'),
+                                                    project_prebuild_address = request.POST.get('project_prebuild_address'),
+                                                    project_prebuild_command=request.POST.get('project_prebuild_command'),
                                                     )
             recordProject.delay(project_user=str(request.user),project_id=project.id,project_name=project.project_name,project_content="添加项目")
         except Exception,e:
@@ -109,7 +112,10 @@ def deploy_modf(request,pid):
                                                     project_user = request.POST.get('project_user'),
                                                     project_audit_group = request.POST.get('project_audit_group'),
                                                     project_repo_user = request.POST.get('project_repo_user'),
-                                                    project_repo_passwd = request.POST.get('project_repo_passwd'),                                                    
+                                                    project_repo_passwd = request.POST.get('project_repo_passwd'),
+                                                    project_prebuild_type=request.POST.get('project_prebuild_type'),
+                                                    project_prebuild_address=request.POST.get('project_prebuild_address'),
+                                                    project_prebuild_command=request.POST.get('project_prebuild_command'),
                                                     )
             recordProject.delay(project_user=str(request.user),project_id=pid,project_name=project.project_name,project_content="修改项目")
         except Exception,e:
@@ -159,9 +165,22 @@ def deploy_init(request,pid):
         project = Project_Config.objects.select_related().get(id=pid)
         if project.project_repertory == 'git':version = GitTools()
         elif project.project_repertory == 'svn':version = SvnTools()
+        #初始化仓库代码目录和目标文件存放目录
         version.mkdir(dir=project.project_repo_dir)
         version.mkdir(dir=project.project_dir)
-        result = version.clone(url=project.project_address, dir=project.project_repo_dir, user=project.project_repo_user, passwd=project.project_repo_passwd)
+        #预编译源码下载初始化,特殊化代码目录
+        if project.project_prebuild_type == 1:
+            if re.findall('^git', project.project_prebuild_address):
+                dir = project.project_prebuild_address.split('/')[-1].split('.')[0]
+                lib_dir = project.project_repo_dir + os.sep +dir
+                result = version.clone(url=project.project_prebuild_address, dir=lib_dir,
+                               user=project.project_repo_user, passwd=project.project_repo_passwd)
+                if result[0] > 0: return JsonResponse({'msg': result[1], "code": 500, 'data': []})
+        #项目源码下载初始化
+        if re.findall('^git', project.project_prebuild_address):
+            dir = project.project_address.split('/')[-1].split('.')[0]
+            repo_dir = project.project_repo_dir + os.sep +dir
+            result = version.clone(url=project.project_address, dir=repo_dir, user=project.project_repo_user, passwd=project.project_repo_passwd)
         if result[0] > 0:return  JsonResponse({'msg':result[1],"code":500,'data':[]})
         else:
             Project_Config.objects.filter(id=pid).update(project_status = 1)  
@@ -209,6 +228,8 @@ def deploy_run(request,pid):
     try:
         project = Project_Config.objects.get(id=pid)
         serverList = Project_Number.objects.filter(project=project)
+        repo_git_name = project.project_address.split('/')[-1].split('.')[0]
+        repo_dir = project.project_repo_dir + os.sep + repo_git_name
         if project.project_repertory == 'git':version = GitTools()
         elif project.project_repertory == 'svn':version = SvnTools()
     except:
@@ -216,11 +237,12 @@ def deploy_run(request,pid):
                                                          "errorInfo":"项目不存在，可能已经被删除."}, 
                                   context_instance=RequestContext(request))     
     if request.method == "GET":
-        if project.project_model == 'branch':bList = version.branch(path=project.project_repo_dir) 
-        elif project.project_model == 'tag':bList = version.tag(path=project.project_repo_dir) 
+        if project.project_model == 'branch':bList = version.branch(path=repo_dir)
+        elif project.project_model == 'tag':bList = version.tag(path=repo_dir)
         #获取最新版本
-        version.pull(path=project.project_repo_dir)        
-        vList = version.log(path=project.project_repo_dir, number=50)
+        # print repo_dir
+        version.pull(path=repo_dir)
+        vList = version.log(path=repo_dir, number=50)
         return render_to_response('deploy/deploy_run.html',{"user":request.user,
                                                          "project":project,"serverList":serverList,
                                                          "bList":bList,"vList":vList}, 
@@ -236,7 +258,8 @@ def deploy_run(request,pid):
         if DsRedis.OpsProject.get(redisKey=project.project_uuid+"-locked") is None:#判断该项目是否有人在部署
             #给项目部署加上锁
             DsRedis.OpsProject.set(redisKey=project.project_uuid+"-locked",value=request.user)
-            DsRedis.OpsDeploy.delete(project.project_uuid)  
+            DsRedis.OpsDeploy.delete(project.project_uuid)
+            #回滚操作
             if request.POST.get('project_mode',None) == "rollback":
                 if project.project_model == 'branch':
                     trueDir = project.project_dir+project.project_env+'/'+ request.POST.get('project_version')  + '/'
@@ -248,10 +271,10 @@ def deploy_run(request,pid):
                 #判断版本上线类型再切换分支到指定的分支/Tag
                 if project.project_model == 'branch':
                     bName = request.POST.get('project_branch')
-                    result = version.checkOut(path=project.project_repo_dir, name=bName)
+                    result = version.checkOut(path=repo_dir, name=bName)
                     DsRedis.OpsDeploy.lpush(project.project_uuid, data="[Start] Switched to branch %s" % bName)
                     #reset到指定版本
-                    result = version.reset(path=project.project_repo_dir, commintId=request.POST.get('project_version'))
+                    result = version.reset(path=repo_dir, commintId=request.POST.get('project_version'))
                     DsRedis.OpsDeploy.lpush(project.project_uuid, data="[Running] Git reset to {comid} info: {info}".format(comid=request.POST.get('project_version'),info=result[1])) 
                     trueDir = project.project_dir+project.project_env+'/'+ request.POST.get('project_version')  + '/'
                 elif project.project_model == 'tag':
@@ -266,12 +289,39 @@ def deploy_run(request,pid):
                 softdir = project.project_dir+project.project_name+'/'
                 result = base.lns(spath=trueDir, dpath=softdir.rstrip('/'))
                 DsRedis.OpsDeploy.lpush(project.project_uuid, data="[Running] Make softlink cmd:  ln -s  {sdir} {ddir} info: {info}".format(sdir=trueDir,ddir=softdir,info=result[1]))
-                if result[0] > 0:return JsonResponse({'msg':result[1],"code":500,'data':[]})                   
+                if result[0] > 0:return JsonResponse({'msg':result[1],"code":500,'data':[]})
+                
+                #判断是否需要预编译并执行
+                #判断是否需要预编译
+                if project.project_prebuild_type == 1:
+                    pre_git_name = project.project_prebuild_address.split('/')[-1].split('.')[0]
+                    pre_dir = project.project_repo_dir + os.sep + pre_git_name
+                    if project.project_prebuild_command:
+                        os.chdir(pre_dir)
+                        result = base.cmds(cmds=project.project_prebuild_command)
+                        if re.findall("SUCCESS",result[1]):info = "SUCCESS"
+                        else:info = "FAILED"
+                        DsRedis.OpsDeploy.lpush(project.project_uuid,data="[Running] Execute prebulid command: {cmds} info: {info}".format(
+                                                cmds=project.project_prebuild_command, info=info))
+                        if result[0] > 0: return JsonResponse({'msg': result[1], "code": 500, 'data': []})
                 #执行部署命令  - 编译型语言      
                 if project.project_local_command:
-                    result =  base.cmds(cmds=project.project_local_command) 
-                    DsRedis.OpsDeploy.lpush(project.project_uuid, data="[Running] Execute local command: {cmds} info: {info}".format(cmds=project.project_local_command,info=result[1])) 
-                    if result[0] > 0:return JsonResponse({'msg':result[1],"code":500,'data':[]})  
+                    os.chdir(repo_dir)
+                    result =  base.cmds(cmds=project.project_local_command)
+                    if re.findall("SUCCESS", result[1]):info = "SUCCESS"
+                    else:info = "FAILED"
+                    DsRedis.OpsDeploy.lpush(project.project_uuid, data="[Running] Execute local command: {cmds} info: {info}".format(cmds=project.project_local_command,info=info))
+                    try:
+                        spackage = repo_dir + os.sep + 'target' + os.sep + project.project_name + '.jar'
+                        truePackage = softdir+os.sep+ project.project_name + '.jar'
+                        print spackage,truePackage
+                        result = base.copy(spackage=spackage, dpackage=truePackage)
+                        DsRedis.OpsDeploy.lpush(project.project_uuid,
+                                            data="[Running] copy package to {softdir}".format(softdir=softdir))
+                    except Exception,e:
+                        print e
+                    if result[0] > 0:return JsonResponse({'msg':result[1],"code":500,'data':[]})
+                    
                 #非编译型语言
                 else:               
                     #获取要排除的文件 
@@ -284,7 +334,7 @@ def deploy_run(request,pid):
                         except Exception,e:
                             return JsonResponse({'msg':str(e),"code":500,'data':[]})
                     #配置rsync同步文件到本地目录
-                    result = base.rsync(sourceDir=project.project_repo_dir, destDir=trueDir,exclude=exclude)
+                    result = base.rsync(sourceDir=repo_dir, destDir=trueDir,exclude=exclude)
                     DsRedis.OpsDeploy.lpush(project.project_uuid, data="[Running] Rsync {sDir} to {dDir} exclude {exclude}".format(sDir=project.project_repo_dir,dDir=trueDir,exclude=exclude))  
                     if result[0] > 0:return JsonResponse({'msg':result[1],"code":500,'data':[]})                         
             #授权文件
@@ -309,7 +359,8 @@ def deploy_run(request,pid):
                 resource.append(data)            
             if resource and hostList:
                 if exclude:args = '''src={srcDir} dest={desDir} links=yes recursive=yes compress=yes delete=yes rsync_opts="{exclude}"'''.format(srcDir=softdir, desDir=ds.dir,exclude=exclude)
-                else:args = '''src={srcDir} dest={desDir} links=yes recursive=yes compress=yes delete=yes'''.format(srcDir=softdir, desDir=ds.dir)
+                else:args = '''src={srcDir} dest={desDir} links=yes recursive=yes compress=yes delete=yes'''.format(srcDir=softdir+project.project_name + '.jar', desDir=ds.dir)
+                #args = '''src={srcDir} dest={desDir} links=yes recursive=yes compress=yes delete=yes'''.format(srcDir=softdir+project.project_name + '.jar', desDir=ds.dir)
                 ANS = ANSRunner(resource)
                 ANS.run_model(host_list=hostList,module_name='synchronize',module_args=args)
                 #精简返回的结果

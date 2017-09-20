@@ -245,7 +245,7 @@ class Project_Config(models.Model):
     deploy_model_choices =  (
                           ('branch',u'branch'),
                           ('tag',u'tag'),
-                          )   
+                          )
     project_env = models.CharField(max_length=50,verbose_name='项目环境',default=None) 
     project_name = models.CharField(max_length=100,verbose_name='项目名称',default=None)    
     project_local_command = models.TextField(blank=True,null=True,verbose_name='部署服务器要执行的命令',default=None)
@@ -262,6 +262,9 @@ class Project_Config(models.Model):
     project_user = models.CharField(max_length=50,verbose_name='项目文件宿主',default=None) 
     project_model = models.CharField(choices=deploy_model_choices,max_length=10,verbose_name='上线类型',default=None)
     project_audit_group = models.SmallIntegerField(verbose_name='项目授权组',blank=True,null=True,default=None)
+    project_prebuild_type = models.SmallIntegerField(verbose_name='是否需要预编译，0为否，1为是',blank=True,null=True,default=0)
+    project_prebuild_address = models.CharField(max_length=100,verbose_name='预编译仓库地址',default=None)
+    project_prebuild_command= models.TextField(blank=True,null=True,verbose_name='预编译执行的命令',default=None)
     '''自定义权限'''
     class Meta:
         db_table = 'opsmanage_project_config'

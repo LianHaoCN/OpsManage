@@ -47,6 +47,38 @@
 
                                             </select>
                                         </div>
+                                        <!-- 增加是否需要预编译 start-->
+                                        <div class="form-group">
+                                            <label>是否需要预编译</label>
+                                            <select class="form-control" name="project_prebuild_type"   required>
+                                                {% if project.project_prebuild_type == 1 %}
+                                            	    <option selected="selected" value=1 name="project_prebuild_type">是</option>
+                                            	    <option value=0 name="project_prebuild_type">否</option>
+                                                {% elif project.project_prebuild_type == 0 %}
+                                                    <option selected="selected" value=0 name="project_prebuild_type">否</option>
+                                                    <option value=1 name="project_prebuild_type">是</option>
+                                                {% else %}
+                                                    <option selected="selected" value="">请选择是否需要预编译</option>
+                                            	    <option value=1 name="project_prebuild_type">是</option>
+                                            	    <option value=0 name="project_prebuild_type">否</option>
+                                                {% endif %}
+                                            </select>
+                                        </div>
+                                        {% if project.project_prebuild_type == 1 %}
+                                        <div class="form-group"  id="prebuild_type">
+	                                            <label>预编译仓库地址</label>
+												<div class="from-group">
+													<input type="text" class="form-control" name="project_prebuild_address" value="{{project.project_prebuild_address}}" >
+                                                    <p class="help-block">例如：https://github.com/welliamcao/VManagePlatform.git</p>
+												</div>
+                                                <label>预编译命令</label>
+                                                <div class="from-group">
+                                                    <textarea class="form-control" rows="3" name="project_prebuild_command" value="{{project.project_prebuild_command}}" > {{project.project_prebuild_command}} </textarea>
+												</div>
+	                                     </div>
+                                        {% endif %}
+                                        <!-- 增加是否需要预编译 end-->
+
                                         <div class="form-group">
                                             <label>编译命令<i class="fa fa-info-circle" data-toggle="tooltip"  title="如果不为空，在编译之后请手动把要部署的代码复制到{编译之后的代码目录}目录"></i></label>
                                             <textarea class="form-control" rows="3" name="project_local_command" value="{{project.project_local_command}}">{{project.project_local_command}}</textarea>

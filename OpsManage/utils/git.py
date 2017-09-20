@@ -3,12 +3,13 @@
 '''git版本控制方法'''
 
 import commands,os,sys
+import re
 
 reload(sys)
 sys.setdefaultencoding('utf8')
 
 class GitTools(object):
-       
+    
     def reset(self,path,commintId):
         cmd = "cd {path} && git reset --hard {commintId}".format(path=path,commintId=commintId)
         return commands.getstatusoutput(cmd)
@@ -84,8 +85,11 @@ class GitTools(object):
         cmd = "cd {path} && git checkout {name}".format(path=path,name=name)
         return commands.getstatusoutput(cmd)    
     
-    def clone(self,url,dir,user=None,passwd=None):       
-        cmd = "git clone {url} {dir}".format(url=url,dir=dir)
+    def clone(self,url,dir,user=None,passwd=None):
+        if os.path.exists(dir) is False:
+            cmd = "git clone {url} {dir}".format(url=url,dir=dir)
+        else:
+            return (0,"%s The project already exists and does not need to be initialized" %dir)
         return commands.getstatusoutput(cmd)  
         
     def pull(self,path):     

@@ -20,7 +20,7 @@
                                     <form role="form" method="post">  {% csrf_token %}
                                         <div class="form-group">
                                             <label>项目名称</label>
-                                            <input class="form-control" name="project_name" required pattern="^\w+$" title="只支持英文格式">
+                                            <input class="form-control" name="project_name" required >
                                             <p class="help-block">例如：opsmanage</p>
                                         </div>
                                         <div class="form-group">
@@ -32,6 +32,27 @@
                                             	<option value="uat" name="project_env">生产环境</option>
                                             </select>
                                         </div>
+                                        <!-- 增加是否需要预编译 start-->
+                                        <div class="form-group">
+                                            <label>是否需要预编译</label>
+                                            <select class="form-control" name="project_prebuild_type" id="prebuild_type_select" onchange="javascript:oBtPreBulidType();" required>
+                                            	<option selected="selected" value="">请选择是否需要预编译</option>
+                                            	<option value=1 name="project_prebuild_type">是</option>
+                                            	<option value=0 name="project_prebuild_type">否</option>
+                                            </select>
+                                        </div>
+                                        <div class="form-group" style="display:none;" id="prebuild_type">
+	                                            <label>预编译仓库地址</label>
+												<div class="from-group">
+													<input type="text" class="form-control" name="project_prebuild_address" >
+                                                    <p class="help-block">例如：https://github.com/welliamcao/VManagePlatform.git</p>
+												</div>
+                                                <label>预编译命令</label>
+                                                <div class="from-group">
+                                                    <textarea class="form-control" rows="3" name="project_prebuild_command"></textarea>
+												</div>
+	                                     </div>
+                                        <!-- 增加是否需要预编译 end-->
                                         <div class="form-group">
                                             <label>编译命令<i class="fa fa-info-circle" data-toggle="tooltip"  title="如果不为空，在编译之后请手动把要部署的代码复制到{编译之后的代码目录+项目名称}的目录,例如：/data/webserver/project/project/ "></i></label>
                                             <textarea class="form-control" rows="3" name="project_local_command"></textarea>
@@ -166,6 +187,18 @@ function oBtRepoType() {
 	   }
 	   else {
 		   document.getElementById("repo_type").style.display = "none";	
+	   }
+}
+
+function oBtPreBulidType() {
+	   var obj = document.getElementById("prebuild_type_select");
+	   var index = obj.selectedIndex;
+	   var value = obj.options[index].value;
+	   if (value == 1){
+		   document.getElementById("prebuild_type").style.display = "";
+	   }
+	   else {
+		   document.getElementById("prebuild_type").style.display = "none";
 	   }
 }
 

@@ -87,3 +87,13 @@ def getDaysAgo(num):
     otherStyleTime = threeDayAgo .strftime("%Y%m%d")
     return otherStyleTime
 
+def copy(spackage,dpackage):
+    cmd = "cp {spackage} {dpackage}".format(spackage=spackage,dpackage=dpackage)
+    return commands.getstatusoutput(cmd)
+
+def lnsPack(spackage,dpackage):
+    if os.path.isfile(spackage):
+        cmd = "ln -s {spackage} {dpackage}".format(spackage=spackage,dpackage=dpackage)
+    else:
+        return (1,"{spackage}文件不存在" %spackage)
+    return commands.getstatusoutput(cmd)
