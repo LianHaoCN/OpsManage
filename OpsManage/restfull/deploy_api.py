@@ -83,4 +83,27 @@ class OrderList(generics.ListAPIView):
         if str(user) == str(username):
             return Project_Order.objects.filter(Q(order_user=user) | Q(order_audit=user),order_status__in=[0,2]).order_by("id")
         else:return []
+
+##模板操作
+@api_view(['GET', 'PUT', 'DELETE'])
+@permission_required('OpsManage.can_delete_project_template', raise_exception=True)
+def deploy_template_detail(request, tid, format=None):
+    """
+    Retrieve, update or delete a template instance.
+    """
+    try:
+        snippet = Project_Template.objects.get(id=tid)
+    except Project_Config.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
     
+    if request.method == 'GET':
+        serializer = ProjectTemplateSerializer(snippet)
+        return Response(serializer.data)
+    
+    elif request.method == 'DELETE':
+        if not request.user.has_perm('OpsManage.delete_project_template'):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        recordProject.delay(project_user=str(request.user), project_id=tid, project_name=snippet.project_name,
+                            project_content="删除项目")
+        snippet.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

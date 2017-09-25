@@ -6,7 +6,7 @@ from django.shortcuts import render_to_response
 from django.template import RequestContext
 from django.contrib.auth.decorators import login_required
 from OpsManage.models import Server_Assets,Project_Config,Project_Number,Project_Order,\
-    Log_Project_Config
+    Log_Project_Config,Project_Template
 from OpsManage.utils.git import GitTools
 from OpsManage.utils.svn import SvnTools
 from OpsManage.utils import base
@@ -20,12 +20,13 @@ from django.contrib.auth.decorators import permission_required
 
 @login_required()
 @permission_required('OpsManage.can_add_project_config',login_url='/noperm/')
-def deploy_add(request):
+def deploy_add(request,template=0):
     if request.method == "GET":
         serverList = Server_Assets.objects.all()
         groupList = Group.objects.all()
+        template = Project_Template.objects.filter(project_template_status=1)
         return render_to_response('deploy/deploy_add.html',{"user":request.user,"groupList":groupList,
-                                                            "serverList":serverList},
+                                                            "serverList":serverList,"template":len(template)},
                                   context_instance=RequestContext(request))
     elif  request.method == "POST":
         serverList = Server_Assets.objects.all()
@@ -53,9 +54,11 @@ def deploy_add(request):
                                                     project_prebuild_address = request.POST.get('project_prebuild_address'),
                                                     project_prebuild_command=request.POST.get('project_prebuild_command'),
                                                     project_prebuild_dir=request.POST.get('project_prebuild_dir'),
+                                                    project_repo_type=request.POST.get('project_repo_type'),
                                                     )
             recordProject.delay(project_user=str(request.user),project_id=project.id,project_name=project.project_name,project_content="添加项目")
         except Exception,e:
+            if template == 1:return (500,str(e))
             return render_to_response('deploy/deploy_add.html',{"user":request.user,
                                                                 "serverList":serverList,
                                                                 "errorInfo":"部署服务器信息添加错误：%s" % str(e)},
@@ -69,12 +72,13 @@ def deploy_add(request):
                                                   project=project)
                 except Exception,e:
                     project.delete()
+                    if template == 1: return (500, str(e))
                     return render_to_response('deploy/deploy_add.html',{"user":request.user,
                                                                         "serverList":serverList,
                                                                         "errorInfo":"目标服务器信息添加错误：%s" % str(e)},
                                               context_instance=RequestContext(request))                     
-          
-        return HttpResponseRedirect('/deploy_add') 
+        if template ==1:return (200,"successfully added")
+        return HttpResponseRedirect('/deploy_list')
     
 @login_required()
 @permission_required('OpsManage.can_change_project_config',login_url='/noperm/')
@@ -99,7 +103,7 @@ def deploy_modf(request,pid):
                                 context_instance=RequestContext(request))         
     elif  request.method == "POST":
         ipList = request.POST.getlist('server',None)
-        try:      
+        try:
             Project_Config.objects.filter(id=pid).update(
                                                     project_name = request.POST.get('project_name'),
                                                     project_env = request.POST.get('project_env'),  
@@ -118,6 +122,7 @@ def deploy_modf(request,pid):
                                                     project_prebuild_address=request.POST.get('project_prebuild_address'),
                                                     project_prebuild_command=request.POST.get('project_prebuild_command'),
                                                     project_prebuild_dir=request.POST.get('project_prebuild_dir'),
+                                                    project_repo_type=request.POST.get('project_repo_type'),
                                                     )
             recordProject.delay(project_user=str(request.user),project_id=pid,project_name=project.project_name,project_content="修改项目")
         except Exception,e:
@@ -296,7 +301,9 @@ def deploy_run(request,pid):
                 softdir = project.project_dir+project.project_name+'/'
                 result = base.lns(spath=trueDir, dpath=softdir.rstrip('/'))
                 DsRedis.OpsDeploy.lpush(project.project_uuid, data="[Running] Make softlink cmd:  ln -s  {sdir} {ddir} info: {info}".format(sdir=trueDir,ddir=softdir,info=result[1]))
-                if result[0] > 0:return JsonResponse({'msg':result[1],"code":500,'data':[]})
+                if result[0] > 0:
+                    DsRedis.OpsProject.delete(redisKey=project.project_uuid + "-locked")
+                    return JsonResponse({'msg':result[1],"code":500,'data':[]})
                 
                 #判断是否需要预编译并执行
                 #判断是否需要预编译
@@ -304,23 +311,32 @@ def deploy_run(request,pid):
                     if project.project_prebuild_command:
                         os.chdir(pre_dir)
                         result = base.cmds(cmds=project.project_prebuild_command)
-                        if re.findall("SUCCESS",result[1]):info = "SUCCESS"
-                        else:info = "FAILED"
-                        DsRedis.OpsDeploy.lpush(project.project_uuid,data="[Running] Execute prebulid command: {cmds} info: {info}".format(
-                                                cmds=project.project_prebuild_command, info=info))
-                        if result[0] > 0:
-                            print result[1]
+                        if result[0] > 0 or re.findall("ERROR",result[1]):
+                            DsRedis.OpsDeploy.lpush(project.project_uuid,data="[Running] Execute prebulid command: {cmds} info: {info}".format(
+                                                cmds=project.project_prebuild_command, info=result[1]))
+                            DsRedis.OpsProject.delete(redisKey=project.project_uuid + "-locked")
                             return JsonResponse({'msg': result[1], "code": 500, 'data': []})
+                        else:
+                            DsRedis.OpsDeploy.lpush(project.project_uuid,
+                                                    data="[Running] Execute prebulid command: {cmds} info: {info}".format(
+                                                        cmds=project.project_prebuild_command, info="SUCESS"))
+                            
                 #执行部署命令  - 编译型语言      
                 if project.project_local_command:
                     exclude = project.project_exclude
                     os.chdir(repo_dir)
                     result =  base.cmds(cmds=project.project_local_command)
-                    if re.findall("SUCCESS", result[1]):info = "SUCCESS"
-                    else:info = "FAILED"
-                    DsRedis.OpsDeploy.lpush(project.project_uuid, data="[Running] Execute local command: {cmds} info: {info}".format(cmds=project.project_local_command,info=info))
+                    if result[0] > 0 or re.findall("ERROR", result[1]):
+                        DsRedis.OpsDeploy.lpush(project.project_uuid,
+                                                data="[Running] Execute prebulid command: {cmds} info: {info}".format(
+                                                    cmds=project.project_prebuild_command, info=result[1]))
+                        DsRedis.OpsProject.delete(redisKey=project.project_uuid + "-locked")
+                        return JsonResponse({'msg': result[1], "code": 500, 'data': []})
+                    else:
+                        DsRedis.OpsDeploy.lpush(project.project_uuid, data="[Running] Execute local command: {cmds} info: {info}".format(cmds=project.project_local_command,info="SUCESS"))
                     try:
-                        spackage = repo_dir + os.sep + 'target' + os.sep + project.project_name + '.jar'
+                        if project.project_repo_type==0:spackage = repo_dir + os.sep + 'target' + os.sep + project.project_name + '.jar'
+                        else:spackage = repo_dir + os.sep + project.project_name + os.sep + 'target' + os.sep + project.project_name + '.jar'
                         truePackage = softdir+os.sep+ project.project_name + '.jar'
                         #print spackage,truePackage
                         result = base.copy(spackage=spackage, dpackage=truePackage)
@@ -328,8 +344,7 @@ def deploy_run(request,pid):
                                             data="[Running] copy package to {softdir}".format(softdir=softdir))
                     except Exception,e:
                         print e
-                    if result[0] > 0:
-                        print result[1]
+                    if result[0] > 0 :
                         return JsonResponse({'msg':result[1],"code":500,'data':[]})
                     
                 #非编译型语言
@@ -548,4 +563,151 @@ def deploy_log(request):
     if request.method == "GET":
         projectList = Log_Project_Config.objects.all().order_by('-id')[0:120]
         return render_to_response('deploy/deploy_log.html',{"user":request.user,"projectList":projectList},
-                                  context_instance=RequestContext(request))         
+                                  context_instance=RequestContext(request))
+
+#模板列表
+@login_required()
+@permission_required('OpsManage.can_read_project_template',login_url='/noperm/')
+def deploy_template_list(request):
+    deployTemplateList = Project_Template.objects.all()
+    return render_to_response('deploy/deploy_template_list.html', {"user":request.user,
+                                "deployTemplateList":deployTemplateList}, context_instance=RequestContext(request))
+
+#增加模板
+@login_required()
+@permission_required('OpsManage.can_add_project_template', login_url='/noperm/')
+def deploy_template_add(request):
+    if request.method == "GET":
+        return render_to_response('deploy/deploy_template_add.html', {"user": request.user},
+                                  context_instance=RequestContext(request))
+    elif request.method == "POST":
+        try:
+            print request.POST
+            project = Project_Template.objects.create(
+                project_name=request.POST.get('project_name'),
+                project_env=request.POST.get('project_env'),
+                project_repertory=request.POST.get('project_repertory'),
+                project_address=request.POST.get('project_address'),
+                project_repo_dir=request.POST.get('project_repo_dir'),
+                project_remote_command=request.POST.get('project_remote_command'),
+                project_local_command=request.POST.get('project_local_command'),
+                project_dir=request.POST.get('project_dir'),
+                project_exclude=request.POST.get('project_exclude', '.git').rstrip(),
+                project_user=request.POST.get('project_user', 'root'),
+                project_model=request.POST.get('project_model'),
+                project_template_status=0,
+                project_repo_user=request.POST.get('project_repo_user'),
+                project_repo_passwd=request.POST.get('project_repo_passwd'),
+                project_prebuild_type=request.POST.get('project_prebuild_type'),
+                project_prebuild_address=request.POST.get('project_prebuild_address'),
+                project_prebuild_command=request.POST.get('project_prebuild_command'),
+                project_prebuild_dir=request.POST.get('project_prebuild_dir'),
+                project_repo_type=request.POST.get('project_repo_type'),
+                project_remote_dir=request.POST.get('project_remote_dir'),
+            )
+            recordProject.delay(project_user=str(request.user), project_id=project.id,
+                                project_name=project.project_name, project_content="添加模板")
+        except Exception, e:
+            return render_to_response('deploy/deploy_template_add.html', {"user": request.user,
+                                                                 "errorInfo": "添加模板错误：%s" % str(e)},
+                                      context_instance=RequestContext(request))
+        #返回模板列表
+        return HttpResponseRedirect('/deploy_template_list')
+
+#修改模板
+@login_required()
+@permission_required('OpsManage.can_change_project_template',login_url='/noperm/')
+def deploy_template_modf(request,pid):
+    try:
+        project = Project_Template.objects.select_related().get(id=pid)
+    except:
+        return render_to_response('deploy/deploy_template_modf.html',{"user":request.user,
+                                                         "errorInfo":"模板不存在，可能已经被删除."},
+                                context_instance=RequestContext(request))
+    if request.method == "GET":
+        return render_to_response('deploy/deploy_template_modf.html',
+                                  {"user":request.user,"project":project},
+                                context_instance=RequestContext(request))
+    elif  request.method == "POST":
+        print request.POST
+        try:
+            Project_Template.objects.filter(id=pid).update(
+                                                    project_name = request.POST.get('project_name'),
+                                                    project_env = request.POST.get('project_env'),
+                                                    project_repertory = request.POST.get('project_repertory'),
+                                                    project_address = request.POST.get('project_address'),
+                                                    project_repo_dir = request.POST.get('project_repo_dir'),
+                                                    project_remote_command = request.POST.get('project_remote_command'),
+                                                    project_local_command = request.POST.get('project_local_command'),
+                                                    project_dir = request.POST.get('project_dir'),
+                                                    project_exclude = request.POST.get('project_exclude','.git').rstrip(),
+                                                    project_user = request.POST.get('project_user'),
+                                                    project_repo_user = request.POST.get('project_repo_user'),
+                                                    project_repo_passwd = request.POST.get('project_repo_passwd'),
+                                                    project_prebuild_type=request.POST.get('project_prebuild_type'),
+                                                    project_prebuild_address=request.POST.get('project_prebuild_address'),
+                                                    project_prebuild_command=request.POST.get('project_prebuild_command'),
+                                                    project_prebuild_dir=request.POST.get('project_prebuild_dir'),
+                                                    project_repo_type=request.POST.get('project_repo_type'),
+                                                    project_remote_dir=request.POST.get('project_remote_dir'),
+                                                    )
+            recordProject.delay(project_user=str(request.user),project_id=pid,project_name=project.project_name,project_content="修改模板")
+        except Exception,e:
+            return render_to_response('deploy/deploy_template_modf.html',
+                                      {"user":request.user,"errorInfo":"更新失败："+str(e)},
+                                  context_instance=RequestContext(request))
+        return HttpResponseRedirect('/deploy_template_list')
+
+#模板状态切换
+@login_required()
+@permission_required('OpsManage.can_change_project_template',login_url='/noperm/')
+def deploy_template_change(request,pid):
+    project = Project_Template.objects.select_related().get(id=pid)
+    if not project:return JsonResponse({'msg': "不存在该模板:{name}".format(name=project.project_name), "code": 500, 'data': []})
+    status = project.project_template_status
+    if request.method == "POST":
+        #状态为1的在用状态，直接更新为0
+        if status == 1:
+            Project_Template.objects.filter(id=pid).update(project_template_status=0)
+            recordProject.delay(project_user=str(request.user), project_id=project.id, project_name=project.project_name,
+                            project_content="模板状态切换")
+            return JsonResponse({'msg': "初始化成功", "code": 200, 'data': []})
+        #状态为0的不使用状态，则需进行判断
+        elif status == 0:
+            checkProjectStatus = Project_Template.objects.filter(project_template_status=1)
+            if checkProjectStatus:
+                msg = "已经存在在用模板，请确认。具体可参看网页下方的模板管理说明"
+                return  JsonResponse({'msg':msg,"code":500,'data':[]})
+            else:
+                Project_Template.objects.filter(id=pid).update(project_template_status=1)
+                recordProject.delay(project_user=str(request.user),project_id=project.id,project_name=project.project_name,project_content="模板状态切换")
+                return JsonResponse({'msg':"初始化成功","code":200,'data':[]})
+        else:
+            return JsonResponse({'msg': "不存在模板状态为:{status}".format(status=status), "code": 500, 'data': []})
+
+
+@login_required()
+@permission_required('OpsManage.can_add_project_config', login_url='/noperm/')
+def deploy_generate_by_template(request):
+    if request.method == "GET":
+        serverList = Server_Assets.objects.all()
+        groupList = Group.objects.all()
+        project = Project_Template.objects.filter(project_template_status=1)[0]
+        if project:
+            return render_to_response('deploy/deploy_generate_by_template.html', {"user": request.user, "groupList": groupList,
+                                                             "serverList": serverList,"project": project},
+                                  context_instance=RequestContext(request))
+        else:
+            return JsonResponse({'msg': "不存在在用模板", "code": 500, 'data': []})
+    elif request.method == "POST":
+        code,msg = deploy_add(request,template=1)
+        print code,msg
+        if code == 500:
+            return render_to_response('deploy/deploy_generate_by_template.html',
+                                      {"user": request.user, "errorInfo": "更新失败：" + str(msg)},
+                                      context_instance=RequestContext(request))
+        else:
+            return HttpResponseRedirect('/deploy_list')
+            
+    else:
+        pass

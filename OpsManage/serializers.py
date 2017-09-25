@@ -72,6 +72,15 @@ class ProjectConfigSerializer(serializers.ModelSerializer):
                   'project_repo_dir','project_dir','project_exclude',
                   'project_address','project_repertory','project_status',
                   'project_remote_command','project_number')   
+#添加模板
+class ProjectTemplateSerializer(serializers.ModelSerializer):
+    project_template_number = serializers.StringRelatedField(many=True)
+    class Meta:
+        model = Project_Template
+        fields = ('id','project_env','project_name','project_local_command',
+                  'project_repo_dir','project_dir','project_exclude',
+                  'project_address','project_repertory','project_status',
+                  'project_remote_command','project_template_number')
 
 class DeployLogsSerializer(serializers.ModelSerializer):
     class Meta:

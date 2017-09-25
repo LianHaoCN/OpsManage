@@ -266,6 +266,7 @@ class Project_Config(models.Model):
     project_prebuild_address = models.CharField(max_length=100,verbose_name='预编译仓库地址',default=None)
     project_prebuild_command= models.TextField(blank=True,null=True,verbose_name='预编译执行的命令',default=None)
     project_prebuild_dir =  models.CharField(max_length=100,verbose_name='预编译代码目录',default=None)
+    project_repo_type = models.SmallIntegerField(verbose_name='Git地址是否多个项目，0为否，1为是', blank=True, null=True, default=1)
     '''自定义权限'''
     class Meta:
         db_table = 'opsmanage_project_config'
@@ -278,6 +279,48 @@ class Project_Config(models.Model):
         unique_together = (("project_env", "project_name"))
         verbose_name = '项目管理表'  
         verbose_name_plural = '项目管理表'  
+
+class Project_Template(models.Model):
+    project_repertory_choices = (
+                          ('git',u'git'),
+                          ('svn',u'svn'),
+                          )
+    deploy_model_choices =  (
+                          ('branch',u'branch'),
+                          ('tag',u'tag'),
+                          )
+    project_env = models.CharField(max_length=50,verbose_name='项目环境',default=None)
+    project_name = models.CharField(max_length=100,verbose_name='项目名称',default=None)
+    project_local_command = models.TextField(blank=True,null=True,verbose_name='部署服务器要执行的命令',default=None)
+    project_repo_dir = models.CharField(max_length=100,verbose_name='本地仓库目录',default=None)
+    project_dir = models.CharField(max_length=100,verbose_name='代码目录',default=None)
+    project_exclude = models.TextField(blank=True,null=True,verbose_name='排除文件',default=None)
+    project_address = models.CharField(max_length=100,verbose_name='版本仓库地址',default=None)
+    project_repo_user = models.CharField(max_length=50,verbose_name='仓库用户名',blank=True,null=True)
+    project_repo_passwd = models.CharField(max_length=50,verbose_name='仓库密码',blank=True,null=True)
+    project_repertory = models.CharField(choices=project_repertory_choices,max_length=10,verbose_name='仓库类型',default=None)
+    project_template_status = models.SmallIntegerField(verbose_name='模板状态，1为使用，0为未使用',blank=True,null=True,default=0)
+    project_remote_command = models.TextField(blank=True,null=True,verbose_name='部署之后执行的命令',default=None)
+    project_user = models.CharField(max_length=50,verbose_name='项目文件宿主',default=None)
+    project_model = models.CharField(choices=deploy_model_choices,max_length=10,verbose_name='上线类型',default=None)
+    project_prebuild_type = models.SmallIntegerField(verbose_name='是否需要预编译，0为否，1为是',blank=True,null=True,default=0)
+    project_prebuild_address = models.CharField(max_length=100,verbose_name='预编译仓库地址',default=None)
+    project_prebuild_command= models.TextField(blank=True,null=True,verbose_name='预编译执行的命令',default=None)
+    project_prebuild_dir =  models.CharField(max_length=100,verbose_name='预编译代码目录',default=None)
+    project_repo_type = models.SmallIntegerField(verbose_name='Git地址是否多个项目，0为否，1为是', blank=True, null=True, default=1)
+    project_remote_dir = models.CharField(max_length=100,verbose_name='远程服务器部署目录',default=None)
+    '''自定义权限'''
+    class Meta:
+        db_table = 'opsmanage_project_template'
+        permissions = (
+            ("can_read_project_template", "读取项目模板权限"),
+            ("can_change_project_template", "更改项目模板权限"),
+            ("can_add_project_template", "添加项目模板权限"),
+            ("can_delete_project_template", "删除项目模板权限"),
+        )
+        # unique = "project_template_status"
+        verbose_name = '项目模板表'
+        verbose_name_plural = '项目模板表'
 
 class Log_Project_Config(models.Model):
     project_id = models.IntegerField(verbose_name='资产类型id',blank=True,null=True,default=None)

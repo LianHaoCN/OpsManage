@@ -3,7 +3,7 @@
 <div id="page-wrapper">
     <div class="row">
          <div class="col-lg-12">
-              <h1 class="page-header"><i class="fa  fa-wrench"></i> 项目配置中心</h1>
+             <h1 class="page-header"><i class="fa  fa-wrench"></i> 项目配置中心</h1>
          </div>
                 <!-- /.col-lg-12 -->
     </div>
@@ -11,7 +11,13 @@
                 <div class="col-lg-12">
                     <div class="panel panel-default">
                         <div class="panel-heading">
- 						<i class="fa  fa-plus"></i> 添加项目
+ 						    <i class="fa  fa-plus"></i> 添加项目
+                            {% if template == 1 %}
+{#                                <a class="btn btn-info " id="template_status" target="_blank" href="/deploy_generate_by_template"><i class="fa fa-plus-circle "></i>使用模板创建</a>#}
+                                <a class="btn btn-info " id="template_status"  href="/deploy_generate_by_template"><i class="fa fa-plus-circle "></i>使用模板创建</a>
+                            {% else %}
+                                <a class="btn btn-info " id="template_status" disabled="disabled" title="无在用模板"><i class="fa fa-plus-circle "></i>使用模板创建</a>
+                            {% endif %}
                         </div>
                         <div class="panel-body">
                             <div class="row">
@@ -53,7 +59,7 @@
 												</div>
                                                 <label>预编译代码地址</label>
                                                 <div class="form-group">
-                                                    <input class="form-control" name="project_prebuild_dir" >
+                                                    <input class="form-control" name="project_prebuild_dir"  >
                                                     <p class="help-block">例如：/data/source_code/prelibpath/</p>
                                                 </div>
 	                                     </div>
@@ -69,7 +75,15 @@
                                             	<option value="git" name="project_repertory">Git</option>
                                             	<option value="svn" name="project_repertory">Svn</option>
                                             </select>
-                                        </div>                                               
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Git地址是否多个项目<i class="fa fa-info-circle" data-toggle="tooltip"  title="如一个git地址多个项目，请选择是，如一个git一个项目，请选择否"></i></label>
+                                            <select class="form-control" name="project_repo_type" required>
+                                            	<option selected="selected" value="">请选择</option>
+                                            	<option value=1 name="project_repo_type">是</option>
+                                            	<option value=0 name="project_repo_type">否</option>
+                                            </select>
+                                        </div>
                                         <div class="form-group">
                                             <label>仓库地址</label>
                                             <input class="form-control" name="project_address" required>
@@ -206,6 +220,7 @@ function oBtPreBulidType() {
 		   document.getElementById("prebuild_type").style.display = "none";
 	   }
 }
+
 
 </script>
 
