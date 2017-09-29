@@ -308,29 +308,34 @@ def deploy_run(request,pid):
                 #判断是否需要预编译并执行
                 #判断是否需要预编译
                 if project.project_prebuild_type == 1:
-                    if project.project_prebuild_command:
-                        os.chdir(pre_dir)
-                        result = base.cmds(cmds=project.project_prebuild_command)
-                        if result[0] > 0 or re.findall("ERROR",result[1]):
-                            DsRedis.OpsDeploy.lpush(project.project_uuid,data="[Running] Execute prebulid command: {cmds} info: {info}".format(
+                    try:
+                        if project.project_prebuild_command:
+                            base.cd(pre_dir)
+                            result = base.cmds(cmds=project.project_prebuild_command)
+                            if result[0] > 0 or re.findall("ERROR",result[1]):
+                                DsRedis.OpsDeploy.lpush(project.project_uuid,data="[Running] Execute prebulid command: {cmds} info: {info}".format(
                                                 cmds=project.project_prebuild_command, info=result[1]))
-                            DsRedis.OpsProject.delete(redisKey=project.project_uuid + "-locked")
-                            return JsonResponse({'msg': result[1], "code": 500, 'data': []})
-                        else:
-                            DsRedis.OpsDeploy.lpush(project.project_uuid,
+                                DsRedis.OpsProject.delete(redisKey=project.project_uuid + "-locked")
+                                print result[1]
+                                return JsonResponse({'msg': result[1], "code": 500, 'data': []})
+                            else:
+                                DsRedis.OpsDeploy.lpush(project.project_uuid,
                                                     data="[Running] Execute prebulid command: {cmds} info: {info}".format(
                                                         cmds=project.project_prebuild_command, info="SUCESS"))
+                    except Exception,e:
+                        print  e
                             
                 #执行部署命令  - 编译型语言      
                 if project.project_local_command:
                     exclude = project.project_exclude
-                    os.chdir(repo_dir)
+                    base.cd(repo_dir)
                     result =  base.cmds(cmds=project.project_local_command)
                     if result[0] > 0 or re.findall("ERROR", result[1]):
                         DsRedis.OpsDeploy.lpush(project.project_uuid,
                                                 data="[Running] Execute prebulid command: {cmds} info: {info}".format(
                                                     cmds=project.project_prebuild_command, info=result[1]))
                         DsRedis.OpsProject.delete(redisKey=project.project_uuid + "-locked")
+                        print result[1]
                         return JsonResponse({'msg': result[1], "code": 500, 'data': []})
                     else:
                         DsRedis.OpsDeploy.lpush(project.project_uuid, data="[Running] Execute local command: {cmds} info: {info}".format(cmds=project.project_local_command,info="SUCESS"))
@@ -345,6 +350,7 @@ def deploy_run(request,pid):
                     except Exception,e:
                         print e
                     if result[0] > 0 :
+                        print result[1]
                         return JsonResponse({'msg':result[1],"code":500,'data':[]})
                     
                 #非编译型语言

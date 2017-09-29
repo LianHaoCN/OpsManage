@@ -15,6 +15,7 @@ from OpsManage.models import (Ansible_Playbook,Ansible_Playbook_Number,
                               Ansible_CallBack_PlayBook_Result,Assets)
 from OpsManage.data.DsMySQL import AnsibleRecord
 from django.contrib.auth.decorators import permission_required
+from OpsManage.settings import MEDIA_ROOT
 
 
 @login_required()
@@ -104,7 +105,8 @@ def apps_add(request):
                 serverList = Assets.objects.filter(business=request.POST.get('ansible_service'))
                 sList = [  s.server_assets.ip for s in serverList ]   
                 playbook_server_value = request.POST.get('ansible_service')                            
-        try:      
+        try:
+            print request.FILES.get('playbook_file')
             playbook = Ansible_Playbook.objects.create(
                                             playbook_name = request.POST.get('playbook_name'),
                                             playbook_desc = request.POST.get('playbook_desc'), 
@@ -158,7 +160,8 @@ def apps_playbook_file(request,pid):
     except:
         return JsonResponse({'msg':"剧本不存在，可能已经被删除.","code":200,'data':[]})  
     if request.method == "POST":
-        playbook_file = os.getcwd() + '/' + str(playbook.playbook_file)
+        # playbook_file = os.getcwd() + '/' + str(playbook.playbook_file)
+        playbook_file = MEDIA_ROOT + '/' + str(playbook.playbook_file)
         if os.path.exists(playbook_file):
             content = ''
             with open(playbook_file,"r") as f:
@@ -189,7 +192,8 @@ def apps_playbook_run(request,pid):
             DsRedis.OpsAnsiblePlayBookLock.set(redisKey=playbook.playbook_uuid+'-locked',value=request.user)
             #删除旧的执行消息
             DsRedis.OpsAnsiblePlayBook.delete(playbook.playbook_uuid)            
-            playbook_file = os.getcwd() + '/' + str(playbook.playbook_file)
+            # playbook_file = os.getcwd() + '/' + str(playbook.playbook_file)
+            playbook_file = MEDIA_ROOT + '/' + str(playbook.playbook_file)
             sList = []
             resource = []
             if numberList:serverList = [ s.playbook_server for s in numberList ]

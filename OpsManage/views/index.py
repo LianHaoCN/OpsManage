@@ -28,8 +28,9 @@ def index(request):
             sql = """SELECT id,IFNULL(count(0),0) as count from opsmanage_project_order WHERE 
                     date_format(create_time,"%%Y%%m%%d") = {startTime} and order_user='{user}'""".format(startTime=startTime,user=user)
             userData = Project_Order.objects.raw(sql) 
-            if  userData[0].count == 0 :valueList.append(random.randint(1, 10)) 
-            else:valueList.append(userData[0].count) 
+            # if  userData[0].count == 0 :valueList.append(random.randint(1, 10))
+            # else:valueList.append(userData[0].count)
+            valueList.append(userData[0].count)
         data[user] = valueList
         dataList.append(data) 
     #获取所有指派给自己需要审核的工单
@@ -46,8 +47,9 @@ def index(request):
             sql = """SELECT id,IFNULL(count(0),0) as count from opsmanage_project_order WHERE date_format(create_time,"%%Y%%m%%d") >= {startTime} and 
                     date_format(create_time,"%%Y%%m%%d") <= {endTime} and order_user='{user}'""".format(startTime=startTime,endTime=endTime,user=user)
             userData = Project_Order.objects.raw(sql) 
-            if  userData[0].count == 0:data[user] = random.randint(1, 100)
-            else:data[user] = userData[0].count
+            # if  userData[0].count == 0:data[user] = random.randint(1, 100)
+            # else:data[user] = userData[0].count
+            data[user] = userData[0].count
         monthDataList.append(data)
     #用户部署总计
     allDeployList = []

@@ -445,7 +445,11 @@ class Log_Ansible_Model(models.Model):
         )
         verbose_name = 'Ansible模块执行记录表'  
         verbose_name_plural = 'Ansible模块执行记录表' 
-        
+
+
+def user_directory_path(instance, filename):
+    # file will be uploaded to MEDIA_ROOT/user_<id>/<filename>
+    return 'upload/{0}/{1}'.format(instance.playbook_server_value, filename)
 class Ansible_Playbook(models.Model): 
     type = (
              ('service',u'service'),
@@ -458,7 +462,7 @@ class Ansible_Playbook(models.Model):
     playbook_uuid = models.CharField(max_length=50,verbose_name='唯一id')
     playbook_server_model = models.CharField(choices=type,verbose_name='服务器选择类型',max_length=10,blank=True,null=True)
     playbook_server_value = models.SmallIntegerField(verbose_name='服务器选择类型值',blank=True,null=True)
-    playbook_file = models.FileField(upload_to = './upload/playbook/',verbose_name='剧本路径')
+    playbook_file = models.FileField(upload_to = user_directory_path,verbose_name='剧本路径')
     playbook_auth_group = models.SmallIntegerField(verbose_name='授权组',blank=True,null=True)
     playbook_auth_user = models.SmallIntegerField(verbose_name='授权用户',blank=True,null=True,)
     class Meta:

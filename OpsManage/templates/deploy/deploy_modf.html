@@ -50,7 +50,7 @@
                                         <!-- 增加是否需要预编译 start-->
                                         <div class="form-group">
                                             <label>是否需要预编译</label>
-                                            <select class="form-control" name="project_prebuild_type"   required>
+                                            <select class="form-control" name="project_prebuild_type"  id='prebuild_type_select' onchange="javascript:oBtPrebuildType();"  required>
                                                 {% if project.project_prebuild_type == 1 %}
                                             	    <option selected="selected" value=1 name="project_prebuild_type">是</option>
                                             	    <option value=0 name="project_prebuild_type">否</option>
@@ -65,7 +65,24 @@
                                             </select>
                                         </div>
                                         {% if project.project_prebuild_type == 1 %}
-                                        <div class="form-group"  id="prebuild_type">
+                                            <div class="form-group"  id="prebuild_type">
+	                                            <label>预编译仓库地址</label>
+												<div class="from-group">
+													<input type="text" class="form-control" name="project_prebuild_address" value="{{project.project_prebuild_address}}" >
+                                                    <p class="help-block">例如：https://github.com/welliamcao/VManagePlatform.git</p>
+												</div>
+                                                <label>预编译命令</label>
+                                                <div class="from-group">
+                                                    <textarea class="form-control" rows="3" name="project_prebuild_command" value="{{project.project_prebuild_command}}" > {{project.project_prebuild_command}} </textarea>
+												</div>
+                                                <label>预编译仓库地址</label>
+                                                <div class="from-group">
+                                                    <input class="form-control" name="project_prebuild_dir" value="{{project.project_prebuild_dir}}" required pattern="^/.*/$" title="正确格式：/path/" >
+                                                    <p class="help-block">例如：/data/source_code/pre_path/</p>
+                                                </div>
+	                                        </div>
+                                        {% else %}
+                                            <div class="form-group"  id="prebuild_type" style="display: none">
 	                                            <label>预编译仓库地址</label>
 												<div class="from-group">
 													<input type="text" class="form-control" name="project_prebuild_address" value="{{project.project_prebuild_address}}" >
@@ -264,6 +281,18 @@ function oBtEnvType() {
 	   }
 	   else {
 		   document.getElementById("extConfig").style.display = "none";	
+	   }
+}
+
+function oBtPrebuildType() {
+	   var obj = document.getElementById("prebuild_type_select");
+	   var index = obj.selectedIndex;
+	   var value = obj.options[index].value;
+	   if (value==1){
+		   document.getElementById("prebuild_type").style.display = "";
+	   }
+	   else {
+		   document.getElementById("prebuild_type").style.display = "none";
 	   }
 }
 
