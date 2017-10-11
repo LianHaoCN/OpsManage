@@ -222,6 +222,12 @@ def deploy_version(request,pid):
                 elif request.POST.get('model') == 'tag':result = version.delTag(path=project.project_repo_dir,tagName=request.POST.get('name')) 
             elif request.POST.get('op') == 'query':
                 if project.project_model == 'branch':
+                    #检出分支
+                    version.checkOut(path=project.project_repo_dir,name=request.POST.get('name'))
+                    version.pull(path=project.project_repo_dir)
+                    if project.project_prebuild_type == 1:
+                        version.checkOut(path=project.project_prebuild_address, name=request.POST.get('name'))
+                        version.pull(path=project.project_prebuild_address)
                     result = version.log(path=project.project_repo_dir,bName=request.POST.get('name'),number=50)
                     return JsonResponse({'msg':"操作成功","code":200,'data':result}) 
                 else:result = version.tag(path=project.project_repo_dir)
@@ -280,7 +286,7 @@ def deploy_run(request,pid):
                 #判断版本上线类型再切换分支到指定的分支/Tag
                 if project.project_model == 'branch':
                     bName = request.POST.get('project_branch')
-                    #预编译切换分支
+                    #预编译切换分支,预编译默认为最新
                     result = version.checkOut(path=pre_dir, name=bName)
                     DsRedis.OpsDeploy.lpush(project.project_uuid, data="[Start] Switched {dir} to branch {bName}".format(dir=pre_dir,bName=bName))
                     result = version.checkOut(path=repo_dir, name=bName)
