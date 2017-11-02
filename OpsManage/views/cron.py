@@ -12,6 +12,7 @@ from OpsManage.tasks import recordCron
 from OpsManage.models import Log_Cron_Config
 from django.contrib.auth.decorators import permission_required
 from OpsManage.utils.ansible_api_v2 import ANSRunner
+from django.conf import settings
 
 @login_required()
 @permission_required('OpsManage.can_add_cron_config',login_url='/noperm/') 
@@ -59,7 +60,7 @@ def cron_add(request):
                 else:resource = [{"hostname": server.ip, "port": int(server.port),"username": server.username,"password": server.passwd}]              
                 ANS = ANSRunner(resource)
                 if cron.cron_script:
-                    src = os.getcwd() + '/' + str(cron.cron_script)
+                    src = settings.MEDIA_ROOT + '/' + str(cron.cron_script)
                     file_args = """src={src} dest={dest} owner={user} group={user} mode=755""".format(src=src,dest=cron.cron_script_path,user=cron.cron_user)
                     ANS.run_model(host_list=sList,module_name="copy",module_args=file_args)        
                     result = ANS.handle_model_data(ANS.get_model_result(), 'copy',file_args)  
@@ -81,7 +82,7 @@ def cron_add(request):
                 cron.delete()
                 return render_to_response('cron/cron_add.html',{"user":request.user,
                                                                    "serverList":serverList,
-                                                                   "errorInfo":"错误信息:"+script[0].get('msg')}, 
+                                                                   "errorInfo":"错误信息:"+result[0].get('msg')}, 
                                       context_instance=RequestContext(request)) 
         return HttpResponseRedirect('/cron_add')
 
