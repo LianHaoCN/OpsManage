@@ -107,6 +107,8 @@ def sendEmail(order_id,mask):
     try:
         config = Email_Config.objects.get(id=1)
         order = Project_Order.objects.get(id=order_id)
+        emailConfig = Global_Config.objects.get(id=1)
+        if emailConfig.email != 1: return False
     except:
         return False
     content = """申请人：{user}<br>                                          
