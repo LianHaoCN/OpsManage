@@ -491,8 +491,15 @@ def deploy_ask(request,pid):
 @login_required()
 def deploy_order(request):
     if request.method == "GET":
-        orderList = Project_Order.objects.filter(Q(order_user=User.objects.get(username=request.user)) |
-                                                 Q(order_audit=User.objects.get(username=request.user))).order_by("id")[0:150]
+        # orderList = Project_Order.objects.filter(Q(order_user=User.objects.get(username=request.user)) |
+        #                                          Q(order_audit=User.objects.get(username=request.user))).order_by("id")[0:150]
+        user = User.objects.get(username=request.user)
+        if user.is_superuser:
+            orderList = Project_Order.objects.all().order_by('-id')[0:120]
+        else:
+            orderList = Project_Order.objects.filter(Q(order_user=User.objects.get(username=request.user)) |
+                                                     Q(order_audit=User.objects.get(username=request.user))).order_by(
+                "id")[0:150]
         totalOrder = Project_Order.objects.all().count()
         doneOrder = Project_Order.objects.filter(order_status=3).count()
         authOrder = Project_Order.objects.filter(order_status=2).count()
