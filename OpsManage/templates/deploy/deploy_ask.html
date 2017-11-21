@@ -103,12 +103,17 @@
 											<div class="form-group">
 												 <label class="col-sm-2 control-label">部署指派<i class="fa fa-info-circle" data-toggle="tooltip"  title="指派授权用户"></i></label>
 												 <div class="col-sm-6">
-												 	 <select class="form-control" name="order_audit"  required>
-														   <option selected="selected" value="" name="order_audit" >请选择授权用户</option>
-															{% for ds in userList %}
-																<option value="{{ds}}" name="oorder_audit">{{ds}}</option>
-															{% endfor %}						   		
-													</select>
+{#												 	 <select class="form-control" name="order_audit"  required>#}
+{#														   <option selected="selected" value="" name="order_audit" >请选择授权用户</option>#}
+{#															{% for ds in userList %}#}
+{#																<option value="{{ds}}" name="oorder_audit">{{ds}}</option>#}
+{#															{% endfor %}						   		#}
+{#													</select>#}
+                                                     <select multiple class="selectpicker" data-live-search="true" name="order_audit" required>
+                                                         {% for ds in userList %}
+                                            		        <option name="order_audit" value="{{ ds }}">{{ ds }}</option>
+                                            	         {% endfor %}
+                                                    </select>
 												 </div>
 											</div>
 											

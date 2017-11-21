@@ -119,7 +119,9 @@ def sendEmail(order_id,mask):
                                            content=order.order_content)
     if order.order_cancel:
         content += "撤销原因：<strong>{order_cancel}</strong>".format(order_cancel=order.order_cancel)
-    to_user = User.objects.get(username=order.order_audit).email
+    # to_user = User.objects.get(username=order.order_audit).email
+    user_email = [User.objects.get(username=audit).email for audit in order.order_audit.split(',')]
+    to_user = ','.join(user_email)
     if config.subject:subject = "{sub} {oub} {mask}".format(sub=config.subject,oub=order.order_subject,mask=mask)
     else:subject = "{oub} {mask}".format(mask=mask,oub=order.order_subject)
     if config.cc_user:

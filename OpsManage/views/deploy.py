@@ -473,7 +473,7 @@ def deploy_ask(request,pid):
                                                     order_user = request.user,
                                                     order_project = project, 
                                                     order_subject = request.POST.get('order_subject'),
-                                                    order_audit = request.POST.get('order_audit'),
+                                                    order_audit = ','.join(request.POST.getlist('order_audit')),
                                                     order_status = request.POST.get('order_status',2),
                                                     order_level = request.POST.get('order_level'),
                                                     order_content = request.POST.get('order_content'),
@@ -539,7 +539,8 @@ def deploy_order_status(request,pid):
         try:
             order= Project_Order.objects.get(id=pid)
             serverList = Project_Number.objects.filter(project=order.order_project)
-            if order.order_audit == str(request.user):order.order_perm = 'pass'
+            if str(request.user) in order.order_audit:
+                order.order_perm = 'pass'
         except:
             return render_to_response('deploy/deploy_ask.html',{"user":request.user,
                                                 "errorInfo":"工单不存在，可能已经被删除."}, 
