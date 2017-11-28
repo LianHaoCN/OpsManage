@@ -97,3 +97,8 @@ def lnsPack(spackage,dpackage):
     else:
         return (1,"{spackage}文件不存在" %spackage)
     return commands.getstatusoutput(cmd)
+def checkFile(filename):
+    if os.path.isfile(filename):
+        return (0, True)
+    else:
+        return (1, False)
