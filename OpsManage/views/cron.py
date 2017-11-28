@@ -1,6 +1,6 @@
 #!/usr/bin/env python  
 # _#_ coding:utf-8 _*_  
-import os
+import os,uuid
 from django.http import HttpResponseRedirect,JsonResponse
 from django.shortcuts import render_to_response
 from django.template import RequestContext
@@ -12,6 +12,7 @@ from OpsManage.tasks import recordCron
 from OpsManage.models import Log_Cron_Config
 from django.contrib.auth.decorators import permission_required
 from OpsManage.utils.ansible_api_v2 import ANSRunner
+from OpsManage.data.DsRedisOps import DsRedis
 
 @login_required()
 @permission_required('OpsManage.can_add_cron_config',login_url='/noperm/') 
@@ -227,3 +228,172 @@ def cron_log(request):
         cronList = Log_Cron_Config.objects.all().order_by('-id')[0:120]
         return render_to_response('cron/cron_log.html',{"user":request.user,"cronList":cronList},
                                   context_instance=RequestContext(request))
+
+
+@login_required()
+def cron_result(request, cid):
+    if request.method == "POST":
+        # print cid,type(cid)
+        try:
+            msg = DsRedis.OpsDeploy.rpop(request.POST.get('cron_uuid'))
+        except Exception, e:
+            print e
+        if msg:
+            return JsonResponse({'msg': msg, "code": 200, 'data': []})
+        else:
+            return JsonResponse({'msg': None, "code": 200, 'data': []})
+
+
+@login_required()
+@permission_required('OpsManage.can_add_cron_config', login_url='/noperm/')
+def cron_file_distribution(request):
+    serverList = Server_Assets.objects.all()
+    cron_uuid = uuid.uuid4()
+    # print serverList
+    if request.method == "GET":
+        return render_to_response('cron/cron_file_distribution.html', {"user": request.user, "serverList": serverList,
+                                                                       "cron_uuid": cron_uuid},
+                                  context_instance=RequestContext(request))
+
+
+@login_required()
+@permission_required('OpsManage.can_add_cron_config', login_url='/noperm/')
+def cron_script_execution(request):
+    if request.method == "GET":
+        serverList = Server_Assets.objects.all()
+        cron_uuid = uuid.uuid4()
+        return render_to_response('cron/cron_script_execution.html', {"user": request.user, "serverList": serverList,
+                                                                      "cron_uuid": cron_uuid},
+                                  context_instance=RequestContext(request))
+    elif request.method == "POST":
+        script_mode = request.POST.get('cron_script_mode')
+        cron_uuid = request.POST.get('cron_uuid')
+        # print cron_uuid
+        DsRedis.OpsDeploy.delete(cron_uuid)
+        sList = []
+        resource = []
+        for server in request.POST.getlist('cron_server'):
+            server_assets = Server_Assets.objects.get(ip=server)
+            sList.append(server_assets.ip)
+            if server_assets.keyfile == 1:
+                resource.append({"hostname": server_assets.ip, "port": int(server_assets.port)})
+            else:
+                resource.append(
+                    {"hostname": server_assets.ip, "port": int(server_assets.port), "username": server_assets.username,
+                     "password": server_assets.passwd})
+        # 执行ansible playbook
+        if resource:
+            try:
+                ANS = ANSRunner(resource)
+                DsRedis.OpsDeploy.lpush(cron_uuid, data="[Running]  Initial resource success")
+            except Exception, err:
+                print err
+            if script_mode == '0':
+                script_file = request.POST.get('script_file')
+                dst_file = '/tmp' + os.sep + script_file.split('/')[-1]
+                suffix_name = script_file.split('.')[-1]
+                result = base.checkFile(script_file)
+                if result[0] > 0:
+                    print result[1]
+                    return JsonResponse({'msg': result[1], "code": 500, 'data': []})
+                try:
+                    fileargs = '''src={srcDir} dest={desDir} '''.format(srcDir=script_file, desDir=dst_file)
+                    ANS.run_model(host_list=sList, module_name='copy', module_args=fileargs)
+                except Exception, err:
+                    print err
+                # 设置执行参数
+                if suffix_name == 'sh':
+                    raw_args = "/bin/bash " + dst_file
+                elif suffix_name == 'py':
+                    raw_args = "python " + dst_file
+                elif suffix_name == 'pl':
+                    raw_args = "perl " + dst_file
+                else:
+                    return JsonResponse({'msg': "不支持的脚本类型" + suffix_name, "code": 500, 'data': []})
+            elif script_mode == '1':
+                raw_args = request.POST.get('remote_command')
+            else:
+                print "not match type"
+            
+            # 执行远程命令
+            try:
+                ANS.run_model(host_list=sList, module_name='raw', module_args=raw_args)
+                dataList = ANS.handle_model_data(ANS.get_model_result(), 'raw', module_args=raw_args)
+                for ds in dataList:
+                    DsRedis.OpsDeploy.lpush(cron_uuid, data='''[Running] Execute command:{command} to {host}
+                                                         status: {status} msg: {msg}'''.format(host=ds.get('ip'),
+                                                                                               status=ds.get('status'),
+                                                                                               msg=ds.get('msg'),
+                                                                                               command=raw_args))
+                if ds.get('status') == 'failed': result = (1, "执行出错: " + ds.get('msg'))
+            except Exception, err:
+                print err
+            DsRedis.OpsDeploy.lpush(cron_uuid, data="[Done] Excute Script Success.")
+            # 记录日志
+            recordCron.delay(cron_user=str(request.user), cron_id=0, cron_name=request.POST.get('cron_script_name'),
+                             cron_content="执行命令成功," + raw_args, cron_server=",".join(sList))
+            return JsonResponse({'msg': "快速脚本执行成功", "code": 200, 'data': ""})
+        else:
+            return JsonResponse({'msg': "初始化资源失败", "code": 500, 'data': []})
+
+
+@login_required()
+def cron_run(request, cid):
+    if request.method == "POST":
+        cron_file_name = request.POST.get('cron_file_name')
+        cron_dstfile_name = request.POST.get('cron_dstfile_name')
+        # 判断源文件是否存在
+        try:
+            result = base.checkFile(cron_file_name)
+            if result[0] > 0:
+                return JsonResponse({'msg': result[1], "code": 500, 'data': []})
+        except Exception, e:
+            return JsonResponse({'msg': e, "code": 500, 'data': []})
+        if isinstance(cid, int):
+            pass
+        else:
+            cron_uuid = cid
+        # 清理旧rediskey，初始化inventor
+        try:
+            DsRedis.OpsDeploy.delete(cron_uuid)
+            DsRedis.OpsDeploy.lpush(cron_uuid,
+                                    data="[Start] Start file distribution，taskname:%s" % request.POST.get(
+                                        'cron_job_name'))
+        except Exception, e:
+            print e
+        sList = []
+        resource = []
+        serverList = request.POST.getlist('cron_server')
+        # serverList = [Server_Assets.objects.get(ip=ds) for ds in request.POST.getlist('cron_server')]
+        for server in serverList:
+            server_assets = Server_Assets.objects.get(ip=server)
+            sList.append(server_assets.ip)
+            if server_assets.keyfile == 1:
+                resource.append({"hostname": server_assets.ip, "port": int(server_assets.port)})
+            else:
+                resource.append(
+                    {"hostname": server_assets.ip, "port": int(server_assets.port), "username": server_assets.username,
+                     "password": server_assets.passwd})
+        DsRedis.OpsDeploy.lpush(cron_uuid, data="[Running]  Initial resource success")
+        # 执行ansible playbook
+        fileargs = '''src={srcDir} dest={desDir} backup=yes'''.format(srcDir=cron_file_name,
+                                                                      desDir=cron_dstfile_name)
+        ANS = ANSRunner(resource)
+        ANS.run_model(host_list=sList, module_name='copy', module_args=fileargs)
+        # 获取结果
+        dataList = ANS.handle_model_data(ANS.get_model_result(), 'copy', module_args=fileargs)
+        for ds in dataList:
+            DsRedis.OpsDeploy.lpush(cron_uuid, data='''[Running] sync {file} to {host}
+                                    status: {status} msg: {msg}'''.format(host=ds.get('ip'), status=ds.get('status'),
+                                                                          msg=ds.get('msg'), file=cron_file_name))
+        if ds.get('status') == 'failed':
+            result = (1, "部署错误: " + ds.get('msg'))
+        if result[0] > 0:
+            return JsonResponse({'msg': result[1], "code": 500, 'data': []})
+        DsRedis.OpsDeploy.lpush(cron_uuid, data="[Done] Sync file Success.")
+        # 记录日志
+        recordCron.delay(cron_user=str(request.user), cron_id=0, cron_name=request.POST.get('cron_job_name'),
+                         cron_content="分发文件任务,源文件%s,目标文件:%s" % (cron_file_name, cron_dstfile_name)
+                         , cron_server=",".join(sList))
+        return JsonResponse({'msg': "分发文件成功", "code": 200, 'data': ""})
+

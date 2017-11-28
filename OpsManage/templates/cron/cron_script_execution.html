@@ -1,0 +1,175 @@
+{% extends 'index.html' %}
+{% block page-content %}
+<div id="page-wrapper">
+    <div class="row">
+         <div class="col-lg-12">
+              <h1 class="page-header"><i class="fa fa-rocket"></i><code>快速脚本执行</code></h1>
+         </div>
+                <!-- /.col-lg-12 -->
+    </div>
+	<div class="row">
+                <div class="col-lg-12">
+                    <div class="panel panel-default">
+                        <div class="panel-body">
+                            <div class="row">
+                                <div class="col-lg-6">
+                                <legend><i class="fa  fa-paper-plane"></i>脚本情况</legend>
+                                    <form role="form" method="post" id="cronScriptRun" class="main form-horizontal" >{% csrf_token %}
+										<fieldset>
+                                            <div class="form-group">
+                                                <label class="col-sm-2 control-label">脚本任务名称</label>
+{#                                              <label>任务名称<i class="fa fa-info-circle" data-toggle="tooltip"  title="真实被同步代码的目录"></i></label>#}
+                                                <div class="col-sm-6">
+                                                    <input type="text" class="form-control" name="cron_script_name" required>
+                                                    <input type="hidden" class="form-control" name="cron_uuid" value="{{cron_uuid}}" readonly = "readonly">
+                                                </div>
+											</div>
+                                            <!-- 增加是否需要预编译 start-->
+                                            <div class="form-group">
+                                                <label class="col-sm-2 control-label">脚本形式</label>
+                                                <div class="col-sm-6">
+                                                    <select class="form-control" name="cron_script_mode" id="script_mode_select" onchange="javascript:oBtScriptMode();" required>
+                                            	        <option selected="selected" value="">请选择脚本形式</option>
+                                            	        <option value=0 name="cron_script_mode">本地服务器脚本形式</option>
+                                            	        <option value=1 name="cron_script_mode">远程服务命令行形式</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="form-group" style="display:none;" id="cron_script_type">
+                                                <label class="col-sm-2 control-label" title="需要绝对路径,上传该脚本到远程服务器执行">脚本文件</label>
+                                                <div class="col-sm-6">
+                                                    <input type="text" class="form-control" name="script_file" required >
+                                                </div>
+											</div>
+                                            <div class="form-group" style="display:none;" id="remote_command_type">
+                                                <label class="col-sm-2 control-label" title="命令行请使用绝对路径">命令行</label>
+                                                <div class="col-sm-6">
+                                                    <textarea class="form-control" rows="3" name="remote_command"></textarea>
+                                                </div>
+											</div>
+                                            <div class="form-group">
+                                                <label class="col-sm-2 control-label">目标服务器</label>
+                                                <div class="col-sm-6">
+                                                <select multiple class="selectpicker" data-live-search="true" name="cron_server" required>
+                                            	    {% for ds in serverList %}
+                                            		    <option name="cron_server" value="{{ds.ip}}">{{ ds.hostname }}-{{ds.ip}}</option>
+                                            	    {% endfor %}
+                                                </select>
+                                                </div>
+                                            </div>
+
+											</fieldset>
+											<legend></legend>
+											<div class="form-group">
+											<label class="col-sm-3 control-label"></label>
+											<button type="button"  onclick="repealFromVaule(this)" class="btn btn-default" >撤销</button>
+									 		<button type="button"  class="btn btn-default" onclick="runCronScript(this)" >确认执行</button>
+									 		</div>
+
+										</form>
+                                </div>
+                                <!-- /.col-lg-6 (nested) -->
+                                <div class="col-lg-6">
+                                    <legend><i class="fa  fa-paper-plane-o"></i>结果如下</legend>
+									<div class="well well-lg">
+				                        <div id="result">
+				                        </div>
+				                    </div>
+                                <!-- /.col-lg-6 (nested) -->
+                            </div>
+                            <!-- /.row (nested) -->
+                        </div>
+                        <!-- /.panel-body -->
+                    </div>
+                    <!-- /.panel -->
+                </div>
+                <!-- /.col-lg-12 -->
+            </div>
+</div>
+
+<script type="text/javascript">
+
+	function repealFromVaule(){
+		   document.getElementById("cronScriptRun").reset();
+	}
+
+	function oBtScriptMode() {
+	   var obj = document.getElementById("script_mode_select");
+	   var index = obj.selectedIndex;
+	   var value = obj.options[index].value;
+	   if (value == 1){
+		   document.getElementById("remote_command_type").style.display = "";
+		   document.getElementById("cron_script_type").style.display = "none";
+	   }
+	   else {
+		   document.getElementById("remote_command_type").style.display = "none";
+		   document.getElementById("cron_script_type").style.display = "";
+	   }
+}
+
+	function runCronScript(obj) {
+		var btnObj = $(obj);
+		btnObj.attr('disabled',true);
+		var form = document.getElementById('cronScriptRun');
+		var post_data = {};
+		for (var i = 1; i < form.length; ++i) {
+			var name = form[i].name;
+			var value = form[i].value;
+			var project = name.indexOf("cron_");
+			if ( project==0 && value.length==0){
+				window.wxc.xcConfirm("请注意必填项不能为空~", window.wxc.xcConfirm.typeEnum.error);
+				return false;
+			}
+			else if (name.length > 0 && value.length > 0){
+				post_data[name] = value;
+			};
+
+		};
+		$("#result").html("服务器正在处理，请稍等。。。");
+
+		/* 轮训获取结果 开始  */
+	   var interval = setInterval(function(){
+	        $.ajax({
+	            url : '/cron_result/{{ cron_uuid }}/',
+	            type : 'post',
+	            data:post_data,
+	            success : function(result){
+	            	if (result["msg"] !== null ){
+	            		$("#result").append("<p>"+result["msg"]+"</p>");
+	            		if (result["msg"].indexOf("[Done]") == 0){
+	            			clearInterval(interval);
+	            			window.wxc.xcConfirm("快速脚本执行成功", window.wxc.xcConfirm.typeEnum.success);
+	            		}
+	            	}
+	            }
+	        });
+	    },1000);
+	    /* 轮训获取结果结束  */
+
+
+		$.ajax({
+			url:'/cron_script_execution/'+"{{cron_uuid}}/", //请求地址
+			type:"POST",  //提交类似
+			data:$("#cronScriptRun").serialize(),  //提交参数
+			success:function(response){
+				btnObj.removeAttr('disabled');
+				if (response["code"] == "500"){
+					clearInterval(interval);
+					window.wxc.xcConfirm(response["msg"], window.wxc.xcConfirm.typeEnum.error);
+				}
+
+			},
+	    	error:function(response){
+	    		btnObj.removeAttr('disabled');
+	    		window.wxc.xcConfirm("快速脚本执行失败", window.wxc.xcConfirm.typeEnum.error);
+	    		clearInterval(interval);
+	    	}
+		})
+	}
+
+{% if errorInfo %}
+	window.wxc.xcConfirm("{{errorInfo}}", window.wxc.xcConfirm.typeEnum.error);
+{% endif %}
+</script>
+
+{% endblock %}
