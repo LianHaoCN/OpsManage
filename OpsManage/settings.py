@@ -16,7 +16,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 ''' celery config '''
 djcelery.setup_loader()
-BROKER_URL = 'redis://192.168.1.233:6379/3'
+BROKER_URL = 'redis://192.168.136.140:6379/3'
 CELERY_RESULT_BACKEND = 'djcelery.backends.database.DatabaseBackend'
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'pickle'
@@ -28,7 +28,7 @@ CELERY_TRACK_STARTED = True
 CELERY_TIMEZONE='Asia/Shanghai'
 platforms.C_FORCE_ROOT = True
 
-REDSI_KWARGS_LPUSH = {"host":'192.168.1.233','port':6379,'db':3}
+REDSI_KWARGS_LPUSH = {"host":'192.168.136.140','port':6379,'db':3}
 REDSI_LPUSH_POOL = None
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/1.9/howto/deployment/checklist/
@@ -104,9 +104,9 @@ DATABASES = {
     'default': {
         'ENGINE':'django.db.backends.mysql',
         'NAME':'opsmanage',
-        'USER':'root',
-        'PASSWORD':'welliam',
-        'HOST':'192.168.1.233'
+        'USER':'www-data',
+        'PASSWORD':'www-data',
+        'HOST':'127.0.0.1'
 #         'ENGINE': 'django.db.backends.sqlite3',
 #         'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
     }
@@ -150,11 +150,10 @@ USE_TZ = False
 
 STATIC_URL = '/static/'
 STATICFILES_DIRS = (
-     '/mnt/OpsManage/OpsManage/static/',
+    os.path.join(BASE_DIR, 'static'),
     )
 TEMPLATE_DIRS = (
-#     os.path.join(BASE_DIR,'mysite\templates'),
-    '/mnt/OpsManage/OpsManage/templates/',
+    os.path.join(BASE_DIR, 'templates'),
 )
 
 
